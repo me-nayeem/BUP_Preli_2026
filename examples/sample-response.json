@@ -1,0 +1,229 @@
+{
+  "scenario_id": "SAMPLE-06",
+  "directive_interpretation": [
+    {
+      "note_index": 0,
+      "applies": true,
+      "directive_type": "solar_reduction",
+      "structured_adjustment": {
+        "hours": [10, 11],
+        "factor": 0.5
+      },
+      "explanation": "Cloud cover during panel inspection reduces solar output to half from 10 AM to noon."
+    },
+    {
+      "note_index": 1,
+      "applies": true,
+      "directive_type": "no_charge_window",
+      "structured_adjustment": {
+        "hours": [14, 15]
+      },
+      "explanation": "The charging circuit is unavailable from 2 PM to 4 PM."
+    },
+    {
+      "note_index": 2,
+      "applies": false,
+      "directive_type": "no_op",
+      "structured_adjustment": null,
+      "explanation": "The note about library hours next week is unrelated to energy operations on the planned day."
+    }
+  ],
+  "hourly_plan": [
+    {
+      "hour": 0,
+      "grid_kwh": 135,
+      "solar_used_kwh": 0,
+      "battery_action": "charge",
+      "battery_kwh": 50,
+      "battery_energy_after_kwh": 150
+    },
+    {
+      "hour": 1,
+      "grid_kwh": 100,
+      "solar_used_kwh": 0,
+      "battery_action": "charge",
+      "battery_kwh": 20,
+      "battery_energy_after_kwh": 170
+    },
+    {
+      "hour": 2,
+      "grid_kwh": 130,
+      "solar_used_kwh": 0,
+      "battery_action": "charge",
+      "battery_kwh": 50,
+      "battery_energy_after_kwh": 220
+    },
+    {
+      "hour": 3,
+      "grid_kwh": 30,
+      "solar_used_kwh": 0,
+      "battery_action": "discharge",
+      "battery_kwh": 50,
+      "battery_energy_after_kwh": 170
+    },
+    {
+      "hour": 4,
+      "grid_kwh": 135,
+      "solar_used_kwh": 0,
+      "battery_action": "charge",
+      "battery_kwh": 50,
+      "battery_energy_after_kwh": 220
+    },
+    {
+      "hour": 5,
+      "grid_kwh": 95,
+      "solar_used_kwh": 0,
+      "battery_action": "idle",
+      "battery_kwh": 0,
+      "battery_energy_after_kwh": 220
+    },
+    {
+      "hour": 6,
+      "grid_kwh": 105,
+      "solar_used_kwh": 5,
+      "battery_action": "idle",
+      "battery_kwh": 0,
+      "battery_energy_after_kwh": 220
+    },
+    {
+      "hour": 7,
+      "grid_kwh": 105,
+      "solar_used_kwh": 20,
+      "battery_action": "idle",
+      "battery_kwh": 0,
+      "battery_energy_after_kwh": 220
+    },
+    {
+      "hour": 8,
+      "grid_kwh": 85,
+      "solar_used_kwh": 55,
+      "battery_action": "idle",
+      "battery_kwh": 0,
+      "battery_energy_after_kwh": 220
+    },
+    {
+      "hour": 9,
+      "grid_kwh": 55,
+      "solar_used_kwh": 100,
+      "battery_action": "idle",
+      "battery_kwh": 0,
+      "battery_energy_after_kwh": 220
+    },
+    {
+      "hour": 10,
+      "grid_kwh": 60,
+      "solar_used_kwh": 75,
+      "battery_action": "discharge",
+      "battery_kwh": 30,
+      "battery_energy_after_kwh": 190
+    },
+    {
+      "hour": 11,
+      "grid_kwh": 30,
+      "solar_used_kwh": 95,
+      "battery_action": "discharge",
+      "battery_kwh": 50,
+      "battery_energy_after_kwh": 140
+    },
+    {
+      "hour": 12,
+      "grid_kwh": 0,
+      "solar_used_kwh": 210,
+      "battery_action": "charge",
+      "battery_kwh": 30,
+      "battery_energy_after_kwh": 170
+    },
+    {
+      "hour": 13,
+      "grid_kwh": 25,
+      "solar_used_kwh": 200,
+      "battery_action": "charge",
+      "battery_kwh": 50,
+      "battery_energy_after_kwh": 220
+    },
+    {
+      "hour": 14,
+      "grid_kwh": 10,
+      "solar_used_kwh": 160,
+      "battery_action": "idle",
+      "battery_kwh": 0,
+      "battery_energy_after_kwh": 220
+    },
+    {
+      "hour": 15,
+      "grid_kwh": 65,
+      "solar_used_kwh": 100,
+      "battery_action": "idle",
+      "battery_kwh": 0,
+      "battery_energy_after_kwh": 220
+    },
+    {
+      "hour": 16,
+      "grid_kwh": 125,
+      "solar_used_kwh": 50,
+      "battery_action": "idle",
+      "battery_kwh": 0,
+      "battery_energy_after_kwh": 220
+    },
+    {
+      "hour": 17,
+      "grid_kwh": 140,
+      "solar_used_kwh": 15,
+      "battery_action": "discharge",
+      "battery_kwh": 35,
+      "battery_energy_after_kwh": 185
+    },
+    {
+      "hour": 18,
+      "grid_kwh": 155,
+      "solar_used_kwh": 0,
+      "battery_action": "discharge",
+      "battery_kwh": 50,
+      "battery_energy_after_kwh": 135
+    },
+    {
+      "hour": 19,
+      "grid_kwh": 165,
+      "solar_used_kwh": 0,
+      "battery_action": "discharge",
+      "battery_kwh": 50,
+      "battery_energy_after_kwh": 85
+    },
+    {
+      "hour": 20,
+      "grid_kwh": 155,
+      "solar_used_kwh": 0,
+      "battery_action": "discharge",
+      "battery_kwh": 50,
+      "battery_energy_after_kwh": 35
+    },
+    {
+      "hour": 21,
+      "grid_kwh": 175,
+      "solar_used_kwh": 0,
+      "battery_action": "idle",
+      "battery_kwh": 0,
+      "battery_energy_after_kwh": 35
+    },
+    {
+      "hour": 22,
+      "grid_kwh": 155,
+      "solar_used_kwh": 0,
+      "battery_action": "charge",
+      "battery_kwh": 15,
+      "battery_energy_after_kwh": 50
+    },
+    {
+      "hour": 23,
+      "grid_kwh": 160,
+      "solar_used_kwh": 0,
+      "battery_action": "charge",
+      "battery_kwh": 50,
+      "battery_energy_after_kwh": 100
+    }
+  ],
+  "total_grid_kwh": 2395,
+  "total_cost_bdt": 34090,
+  "peak_grid_kwh": 175,
+  "plan_summary": "Applied 2 directive(s) (solar_reduction, no_charge_window); 1 note(s) treated as no_op. Battery charges in hours [0,1,2,4,12,13,22,23] and discharges in hours [3,10,11,17,18,19,20], ending at its starting level. Total grid cost 34090.00 BDT, peak grid 175.00 kWh."
+}
