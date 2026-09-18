@@ -17,10 +17,10 @@ function attemptPlan() {
   return config.llm.providers.flatMap((p) => [p, p]);
 }
 
-async function requestBatch(provider, notes, feedback, timeoutMs) {
+async function requestNote(provider, note, feedback, timeoutMs) {
   const messages = [
     { role: "system", content: SYSTEM_PROMPT },
-    { role: "user", content: buildUserMessage(notes, feedback) },
+    { role: "user", content: buildUserMessage([note], [feedback]) },
   ];
   const options = { timeoutMs, maxTokens: config.llm.maxTokens };
   try {
@@ -51,38 +51,42 @@ async function interpretAll(notes, battery) {
     if (exhausted.has(provider)) continue;
     const remaining = deadline - Date.now();
     if (remaining < 1500) break;
-    try {
-      const text = await requestBatch(
-        provider,
-        pending.map((i) => notes[i]),
-        pending.map((i) => feedback.get(i)),
-        Math.min(config.llm.timeoutMs, remaining),
-      );
-      const batch = parseBatch(text, pending.length);
-      if (!batch.ok) {
-        const output = JSON.stringify(String(text).slice(0, 300));
-        pending.forEach((i) => feedback.set(i, { output, error: batch.error }));
-        console.warn(`LLM ${provider.label}: unusable reply (${batch.error})`);
-        continue;
+    const timeoutMs = Math.min(config.llm.timeoutMs, remaining);
+
+    const replies = await Promise.allSettled(
+      pending.map((i) => requestNote(provider, notes[i], feedback.get(i), timeoutMs)),
+    );
+    let failure = null;
+    pending.forEach((i, k) => {
+      const reply = replies[k];
+      if (reply.status === "rejected") {
+        failure ??= reply.reason;
+        return;
       }
-      pending.forEach((i, k) => {
-        const r = normalizeNote(batch.value[k], i, battery);
-        if (r.ok) {
-          results[i] = r.value;
-          feedback.delete(i);
-          remember(notes[i], batch.value[k]);
-        } else {
-          feedback.set(i, { output: JSON.stringify(batch.value[k]).slice(0, 400), error: r.error });
-          console.warn(`LLM ${provider.label}: note ${i} rejected by guardrails (${r.error})`);
-        }
-      });
-      pending = pending.filter((i) => !results[i]);
-    } catch (err) {
-      console.warn(`LLM ${provider.label}: call failed (${err.message})`);
+      const parsed = parseBatch(reply.value, 1);
+      if (!parsed.ok) {
+        feedback.set(i, { output: JSON.stringify(String(reply.value).slice(0, 300)), error: parsed.error });
+        console.warn(`LLM ${provider.label}: note ${i} unusable reply (${parsed.error})`);
+        return;
+      }
+      const r = normalizeNote(parsed.value[0], i, battery);
+      if (r.ok) {
+        results[i] = r.value;
+        feedback.delete(i);
+        remember(notes[i], parsed.value[0]);
+      } else {
+        feedback.set(i, { output: JSON.stringify(parsed.value[0]).slice(0, 400), error: r.error });
+        console.warn(`LLM ${provider.label}: note ${i} rejected by guardrails (${r.error})`);
+      }
+    });
+    pending = pending.filter((i) => !results[i]);
+
+    if (failure) {
+      console.warn(`LLM ${provider.label}: call failed (${failure.message})`);
       const hasAlternative = config.llm.providers.some((p) => p !== provider && !exhausted.has(p));
-      const overloaded = err.status === 429 || err.status >= 500;
-      const transient = overloaded || err.message === "timeout" || err.message === "network_error";
-      const unusable = [401, 403, 404].includes(err.status);
+      const overloaded = failure.status === 429 || failure.status >= 500;
+      const transient = overloaded || failure.message === "timeout" || failure.message === "network_error";
+      const unusable = [401, 403, 404].includes(failure.status);
       if (unusable || (transient && hasAlternative)) exhausted.add(provider);
       else if (overloaded) await sleep(Math.min(1000, Math.max(0, deadline - Date.now() - 1500)));
     }

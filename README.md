@@ -1,41 +1,62 @@
 # GridWise LLM: Smart Campus Energy Optimizer
 
-BUP CSE Fest 2026 Hackathon, Online Preliminary.
+**BUP CSE Fest 2026 Hackathon, Online Preliminary**
 
 An HTTP API that reads 1–3 natural-language operator notes with a large language model, validates the interpretation with deterministic guardrails, applies the resulting directives to an exact linear-programming model of the campus battery, solar and grid, and returns the minimum-cost valid 24-hour schedule.
 
-| Submission item | Value                                                             |
-| --------------- | ----------------------------------------------------------------- |
-| Live base URL   | `<LIVE_BASE_URL>`                                                 |
-| Docker image    | `<DOCKER_IMAGE>` (for example `docker.io/<user>/gridwise:v1`)     |
-| Service port    | `8000` (override with `PORT`)                                     |
-| Endpoints       | `GET /health`, `POST /optimize-energy`                            |
-| LLM providers   | OpenAI and Google Gemini (both via Chat Completions API)          |
-| LLM models      | `gpt-4o-mini` → `gemini-3.5-flash-lite` → `gemini-3.1-flash-lite` |
-| Optimizer       | HiGHS LP solver (`highs` npm package, WebAssembly)                |
+> **The LLM is the only component that reads operator notes.** Its structured output is what produces the constraints the optimizer uses. There is no keyword or regex interpreter anywhere in the path.
+
+## At a glance
+
+| Item            | Value                                                                        |
+| --------------- | ---------------------------------------------------------------------------- |
+| Live base URL   | `https://bup-preli-2026.onrender.com`                                        |
+| Docker image    | `menayeem/gridwise:v1`                                                       |
+| Repository      | <https://github.com/me-nayeem/BUP_Preli_2026>                                |
+| Endpoints       | `GET /health`, `POST /optimize-energy`                                       |
+| Runtime         | Node.js 22, Express 4, no LLM SDK (plain `fetch`)                            |
+| LLM providers   | OpenAI and Google Gemini, both via the Chat Completions API                  |
+| LLM models      | `gpt-4o-mini` → `gemini-3.5-flash-lite` → `gemini-3.1-flash-lite` (fallback) |
+| Optimizer       | HiGHS LP solver (`highs` npm package, WebAssembly)                           |
+
+**Contents:** [Quickstart](#1-quickstart-local) · [Docker](#2-docker-fallback-path) · [Test the live endpoint](#3-test-the-live-endpoint) · [Configuration](#4-configuration) · [Architecture](#5-architecture) · [LLM role](#6-llm-role) · [Guardrails](#7-guardrails) · [Optimizer](#8-optimizer-highs-linear-program) · [API](#9-api-summary) · [Testing](#10-testing) · [Conventions](#11-interpretation-conventions) · [Limitations](#12-known-limitations) · [Security](#13-security-and-secret-handling) · [Credits](#14-dependencies-and-credits)
 
 ---
 
-## 1. Quickstart (local, from a clean machine)
+## 1. Quickstart (local)
 
-**Prerequisites:** Node.js 22 or newer, npm, and an OpenAI API key. A Google Gemini API key (free at <https://aistudio.google.com/apikey>) is optional and enables the fallback models.
+**Prerequisites:** Node.js 22 or newer, npm, and an OpenAI API key. A Google Gemini API key (free at <https://aistudio.google.com/apikey>) is optional and enables the two Gemini fallback models.
+
+**1. Clone and install**
 
 ```bash
 git clone https://github.com/me-nayeem/BUP_Preli_2026.git
 cd BUP_Preli_2026
 npm ci
-cp .env.example .env          # Windows PowerShell: Copy-Item .env.example .env
 ```
 
-Open `.env` and set `LLM_API_KEY` (OpenAI). Optionally set `LLM_FALLBACK_API_KEY` (Gemini) to enable the two Gemini fallback models. All other values in `.env.example` already have working defaults.
+**2. Configure** (Windows PowerShell: `Copy-Item .env.example .env`)
+
+```bash
+cp .env.example .env
+```
+
+Open `.env` and set:
+
+- `LLM_API_KEY`: your OpenAI key (required)
+- `LLM_FALLBACK_API_KEY`: your Gemini key (optional, enables fallback models)
+
+Everything else in `.env.example` already has a working default. See [Configuration](#4-configuration) for the full list.
+
+**3. Start the server**
 
 ```bash
 npm start
 ```
 
-The server prints `GridWise listening on 0.0.0.0:8000 (LLM: primary=..., fallback=...)` and becomes healthy in under one second.
+The server prints `GridWise listening on 0.0.0.0:8000 (LLM: primary=..., fallback=...)` and is healthy in under one second.
 
-### Check that it works
+**4. Check health**
 
 ```bash
 curl http://localhost:8000/health
@@ -43,33 +64,46 @@ curl http://localhost:8000/health
 
 Expected: `{"status":"ok"}`
 
+**5. Run a public sample** (on Windows PowerShell use `curl.exe` instead of `curl`)
+
 ```bash
 curl -X POST http://localhost:8000/optimize-energy \
   -H "Content-Type: application/json" \
   -d @examples/sample-request.json
 ```
 
-On Windows PowerShell, use `curl.exe` instead of `curl`.
-
-[examples/sample-request.json](examples/sample-request.json) is public sample SAMPLE-06: three notes, namely a 50% solar reduction, a no-charge window and a distractor. The expected result, also saved in [examples/sample-response.json](examples/sample-response.json):
+[`examples/sample-request.json`](examples/sample-request.json) is public sample **SAMPLE-06**: a 50% solar reduction, a no-charge window and a distractor. The full expected response is saved in [`examples/sample-response.json`](examples/sample-response.json). Key fields:
 
 | Field                              | Expected value                                                       |
 | ---------------------------------- | -------------------------------------------------------------------- |
 | `directive_interpretation[0]`      | `solar_reduction`, `{"hours":[10,11],"factor":0.5}`, `applies: true` |
 | `directive_interpretation[1]`      | `no_charge_window`, `{"hours":[14,15]}`, `applies: true`             |
 | `directive_interpretation[2]`      | `no_op`, `structured_adjustment: null`, `applies: false`             |
-| `total_cost_bdt`                   | `34090` (equal to the organizer's optimal reference cost)            |
+| `total_cost_bdt`                   | `34090` (equals the organizer's optimal reference cost)              |
 | `total_grid_kwh` / `peak_grid_kwh` | `2395` / `175`                                                       |
 | `hourly_plan`                      | 24 entries, hours 0–23, battery ends at its initial 100 kWh          |
 
-The explanation text may be worded differently on each run; the structured fields are deterministic.
+The `explanation` and `plan_summary` wording may differ on each run; every structured field is deterministic.
+
+**6. Run all 10 public samples end-to-end** (server must be running in another terminal)
+
+```bash
+npm run eval:samples
+```
+
+Expected: `10/10 pass`. Each case checks the interpretation against the reference, replays the schedule against the ground-truth directives and compares the cost to the optimal reference.
 
 ---
 
-## 2. Run with Docker (fallback execution path)
+## 2. Docker (fallback path)
+
+The image is `menayeem/gridwise:v1`. It uses `node:22-slim`, runs as the non-root `node` user, binds to `0.0.0.0:8000`, has a Docker `HEALTHCHECK` on `/health`, and contains **no secrets**. `.env` is excluded by `.dockerignore`, so every credential is supplied at run time.
+
+**Pull and run**
 
 ```bash
-docker pull <DOCKER_IMAGE>
+docker pull menayeem/gridwise:v1
+
 docker run --rm -p 8000:8000 \
   -e LLM_API_KEY=<your-openai-key> \
   -e LLM_MODEL=gpt-4o-mini \
@@ -77,19 +111,45 @@ docker run --rm -p 8000:8000 \
   -e LLM_FALLBACK_API_KEY=<your-gemini-key> \
   -e LLM_FALLBACK_MODEL=gemini-3.5-flash-lite \
   -e LLM_FALLBACK2_MODEL=gemini-3.1-flash-lite \
-  <DOCKER_IMAGE>
-curl http://localhost:8000/health
+  menayeem/gridwise:v1
 ```
 
-Or pass a whole file with `--env-file .env`. To build the image yourself: `docker build -t gridwise:local .`
+The Gemini lines are optional. With only `LLM_API_KEY` and `LLM_MODEL` set, the service runs with the OpenAI model alone. To pass a whole file instead: `docker run --rm -p 8000:8000 --env-file .env menayeem/gridwise:v1`.
 
-The image uses `node:22-slim`, runs as the non-root `node` user, binds to `0.0.0.0:8000`, has a Docker `HEALTHCHECK` on `/health`, and contains **no secrets**. `.env` is excluded by `.dockerignore`, so every credential is supplied at run time.
+**Verify**
+
+```bash
+curl http://localhost:8000/health
+curl -X POST http://localhost:8000/optimize-energy \
+  -H "Content-Type: application/json" \
+  -d @examples/sample-request.json
+```
+
+(Run the second command from a clone of the repository, which contains `examples/`.)
+
+**Build the image yourself:** `docker build -t gridwise:local .`
 
 ---
 
-## 3. Configuration
+## 3. Test the live endpoint
 
-Only variable names are listed here; never commit real values.
+```bash
+curl https://bup-preli-2026.onrender.com/health
+
+curl -X POST https://bup-preli-2026.onrender.com/optimize-energy \
+  -H "Content-Type: application/json" \
+  -d @examples/sample-request.json
+
+npm run eval:samples -- https://bup-preli-2026.onrender.com
+```
+
+No login, dashboard access or VPN is needed for either endpoint.
+
+---
+
+## 4. Configuration
+
+Only variable names are listed here. Never commit real values.
 
 | Variable                        | Required | Default                                         | Meaning                                                                   |
 | ------------------------------- | -------- | ----------------------------------------------- | ------------------------------------------------------------------------- |
@@ -110,9 +170,11 @@ Only variable names are listed here; never commit real values.
 
 If no LLM is configured, the service still starts and returns valid schedules, but every note is reported as `no_op`.
 
+Check that your configured models exist and respond: `npm run llm:smoke`.
+
 ---
 
-## 4. Architecture
+## 5. Architecture
 
 ```
 POST /optimize-energy
@@ -126,6 +188,8 @@ POST /optimize-energy
   ├─ 6. Response assembly       one action per hour, totals computed from the returned plan
   └─ 7. Final replay            independent re-check of every GridWise rule and every directive
 ```
+
+This maps directly onto the problem statement's flow: **LLM interpreter → guardrail validator → math optimizer → final validator → API response.**
 
 Code layout:
 
@@ -151,9 +215,9 @@ scripts/llm-smoke.js            checks that the configured models exist and resp
 
 ---
 
-## 5. LLM role (model and provider)
+## 6. LLM role
 
-The language model is the **only** component that reads operator notes. Its structured output directly produces the constraints the optimizer uses.
+The language model reads every operator note and turns it into a structured directive. It is the **only** interpreter; deterministic code only validates and applies what the model returns.
 
 - **Providers:** OpenAI and Google Gemini (through its OpenAI-compatible endpoint), both called through the Chat Completions API with plain `fetch`.
 - **Models, tried in this order:**
@@ -161,21 +225,23 @@ The language model is the **only** component that reads operator notes. Its stru
   2. `gemini-3.5-flash-lite` (Gemini): a different provider, so one provider's outage cannot take down every model.
   3. `gemini-3.1-flash-lite` (Gemini): a separate Gemini model with its own quota.
 - **Keys:** each provider uses its own key. A fallback reuses the previous model's key only when its base URL is the **same**, so an OpenAI key is never sent to Gemini or the other way round.
-- **Settings:** `temperature: 0`, JSON mode, system prompt in [src/prompts/interpreter.prompt.js](src/prompts/interpreter.prompt.js).
+- **Settings:** `temperature: 0`, JSON mode, system prompt in [`src/prompts/interpreter.prompt.js`](src/prompts/interpreter.prompt.js).
 
-**Single call, then repair:**
+### Single call, then repair
 
-1. All notes of a request go to the model in **one** call as `{"notes":[{"index":0,"text":"..."}]}`. The model returns `{"results":[...]}`, one object per note. This keeps normal usage at 1 LLM call per request, which matters under free-tier rate limits.
-2. Every result passes through the guardrails. Accepted notes are kept.
+1. All notes of a request go to the model in **one** call as `{"notes":[{"index":0,"text":"..."}]}`. The model returns `{"results":[...]}`, one object per note. Normal usage is 1 LLM call per request, which matters under free-tier rate limits.
+2. Every result passes through the [guardrails](#7-guardrails). Accepted notes are kept.
 3. Only the **rejected** notes are sent back, together with the model's previous output and the exact validation error, for example `remaining_percent + reduction_percent must equal 100`.
 4. On HTTP 429, 5xx or a timeout, the service switches to the next model immediately. Auth errors (401/403/404) disable that model for the request. All attempts share a 22 s budget.
 5. If every attempt fails, the affected note becomes a controlled `no_op` with an explanation. The service never crashes and never invents a directive.
 
-**The model reports raw facts; code does the arithmetic.** The model returns `windows` (`start_hour`/`end_hour`), `remaining_percent` **and** `reduction_percent`, `minimum_energy_kwh` **or** `reserve_percent_of_capacity`, and `max_grid_kwh`. Code then:
+### The model reports raw facts; code does the arithmetic
+
+The model returns `windows` (`start_hour`/`end_hour`), `remaining_percent` **and** `reduction_percent`, `minimum_energy_kwh` **or** `reserve_percent_of_capacity`, and `max_grid_kwh`. Code then:
 
 - expands windows with the start hour included and the end hour excluded (1 PM to 3 PM → `[13,14]`)
 - checks that remaining + reduction = 100, which catches "drop **to** 20%" versus "drop **by** 20%"
-- converts a percentage reserve to kWh using the request's battery capacity
+- converts a percentage reserve to kWh using the request's battery capacity (SAMPLE-03: "50% of the battery capacity" → 100 kWh)
 
 The model is sent **only the note text**. It never sees demand, solar, tariff or battery values, so it cannot change them.
 
@@ -183,9 +249,9 @@ Validated LLM results are cached in memory by normalized note text, so repeated 
 
 ---
 
-## 6. Guardrails
+## 7. Guardrails
 
-Every LLM result is treated as untrusted until all of these pass ([guardrails.service.js](src/services/guardrails.service.js)):
+Every LLM result is treated as untrusted until all of these pass ([`guardrails.service.js`](src/services/guardrails.service.js)):
 
 | Guardrail           | Rule                                                                                                                |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------- |
@@ -198,11 +264,11 @@ Every LLM result is treated as untrusted until all of these pass ([guardrails.se
 | Battery reserve     | Finite, ≥ 0 and ≤ battery capacity; percentages converted in code                                                   |
 | Grid cap            | Finite and ≥ 0                                                                                                      |
 | No invention        | `structured_adjustment` is rebuilt from whitelisted keys only; any extra LLM fields (e.g. `demand_kwh`) are dropped |
-| Final replay        | After optimization the finished schedule is re-verified; see section 7                                              |
+| Final replay        | After optimization the finished schedule is re-verified; see [Optimizer](#8-optimizer-highs-linear-program)         |
 
 ---
 
-## 7. Optimizer (HiGHS linear program)
+## 8. Optimizer (HiGHS linear program)
 
 The solver is **HiGHS**, used through the `highs` npm package (WebAssembly build). One LP with 120 variables solves in about 1–3 ms. The solver is loaded at startup.
 
@@ -214,7 +280,7 @@ For each hour `h`:
 - **Battery transition:** `soc[h] = soc[h−1] + chg[h] − dis[h]`, with `soc[−1] = initial_energy_kwh`
 - **End-of-day neutrality:** `soc[23] = initial_energy_kwh`
 
-How each directive changes the model ([limits.service.js](src/services/limits.service.js)):
+How each directive changes the model ([`limits.service.js`](src/services/limits.service.js)):
 
 | Directive                 | Effect on the LP                                   |
 | ------------------------- | -------------------------------------------------- |
@@ -223,15 +289,16 @@ How each directive changes the model ([limits.service.js](src/services/limits.se
 | `no_charge_window`        | `maxCharge[h] = 0`                                 |
 | `no_discharge_window`     | `maxDischarge[h] = 0`                              |
 | `max_grid_window`         | `grid[h] ≤ max_grid_kwh`                           |
+| `no_op`                   | no change                                          |
 
-**Post-processing:**
+**Post-processing**
 
 - Simultaneous charge and discharge in one hour are netted into a single action. This is always valid because only their difference enters the balance.
 - `grid_kwh` is recomputed from the balance equation and values are rounded to 6 decimals.
 - Battery energy is recomputed from the reported actions.
 - `total_grid_kwh`, `total_cost_bdt` and `peak_grid_kwh` are computed from the returned plan.
 
-**Final replay** ([replay.service.js](src/services/replay.service.js)) independently re-checks:
+**Final replay** ([`replay.service.js`](src/services/replay.service.js)) independently re-checks:
 
 - the 24 hours
 - non-negative, finite values
@@ -243,11 +310,11 @@ How each directive changes the model ([limits.service.js](src/services/limits.se
 - end-of-day neutrality
 - the totals
 
-If any check fails, the service returns 500 instead of an invalid plan; this has never happened in testing. If the directives make the problem infeasible, the service returns 422 `infeasible_after_directives`.
+If any check fails, the service returns 500 instead of an invalid plan (this has never happened in testing). If the directives make the problem infeasible, it returns 422 `infeasible_after_directives`.
 
 ---
 
-## 8. API summary
+## 9. API summary
 
 | Request                                                                                                             | Response                                                                                                                                 |
 | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
@@ -267,7 +334,7 @@ Other request details:
 
 ---
 
-## 9. Testing
+## 10. Testing
 
 ```bash
 npm test               # 148 offline tests, no LLM calls, about 10 s
@@ -275,12 +342,12 @@ npm run llm:smoke      # checks that every configured model exists and responds
 npm run eval:notes     # 42 paraphrased notes and distractors against the real LLM (about 14 calls)
 npm start              # then, in a second terminal:
 npm run eval:samples   # all 10 public samples end-to-end against a running server
-npm run eval:samples -- https://<LIVE_BASE_URL>   # same against the deployed service
+npm run eval:samples -- https://bup-preli-2026.onrender.com   # same, against the deployed service
 ```
 
 The eval scripts wait 4 s between LLM calls (`EVAL_DELAY_MS`) to stay under free-tier rate limits.
 
-Latest results:
+**Latest results**
 
 | Suite                                       | Result                                                                                                                                                           |
 | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -288,7 +355,7 @@ Latest results:
 | `eval:notes`                                | 42/42 exact (type, hours, value) with `gemini-3.5-flash-lite`                                                                                                    |
 | `eval:samples` (local and Docker container) | 10/10 pass: interpretation matches the reference, schedule replays clean against the ground-truth directives, cost equals the optimal reference; p95 about 2.2 s |
 
-What `npm test` covers:
+**What `npm test` covers**
 
 - **Optimizer correctness:** 1,500 random scenarios compared against an independent dynamic-programming solver with no shared code. Every optimal cost and every infeasibility verdict matches.
 - **Hand-computed toy scenarios:** T1–T10.
@@ -302,7 +369,7 @@ What `npm test` covers:
 
 ---
 
-## 10. Interpretation conventions
+## 11. Interpretation conventions
 
 - Time windows include the start hour and exclude the end hour; midnight is 0 as a start and 24 as an end. Windows that cross midnight are split.
 - A single time ("at 6 PM") means one hour; "for N hours starting at X" means `[X, X+N)`; "all day" or no stated time means hours 0–23.
@@ -310,7 +377,19 @@ What `npm test` covers:
 - "Today", "tonight" and "tomorrow" refer to the planned day. Notes about other weeks or months, past events, or energy news that is not one of the 5 constraint types (demand forecasts, tariff changes) are `no_op`.
 - When directives overlap, which the spec does not define: solar factors multiply, the highest reserve wins, the lowest grid cap wins, and no-charge/no-discharge windows are combined.
 
-## 11. Known limitations
+Examples of the mapping (from the problem statement):
+
+| Operator note                                                | Interpretation                                      |
+| ------------------------------------------------------------ | --------------------------------------------------- |
+| "Solar output will drop to about 20% from 1 PM to 3 PM."     | `solar_reduction`, hours `[13,14]`, factor `0.2`    |
+| "Expect an 80% reduction in rooftop solar between 1–3 PM."   | `solar_reduction`, hours `[13,14]`, factor `0.2`    |
+| "Do not charge the battery between 2 PM and 4 PM."           | `no_charge_window`, hours `[14,15]`                 |
+| "Keep at least 120 kWh in reserve from 6 PM until 9 PM."     | `minimum_battery_reserve`, hours `[18,19,20]`, 120  |
+| "The cafeteria menu changes tomorrow."                       | `no_op`, `applies: false`, adjustment `null`        |
+
+---
+
+## 12. Known limitations
 
 - The interpretation depends on the LLM providers being available and within quota. If every configured model fails within the time budget, the affected notes are returned as `no_op`; the schedule stays valid but ignores those notes.
 - The note cache is in memory and per process, so it is not shared between instances or kept across restarts.
@@ -318,14 +397,18 @@ What `npm test` covers:
 - Numeric inputs are limited to ±1e9. Negative tariffs are accepted, since the spec does not forbid them.
 - On Windows client editions, the OS limits queued TCP connections to about 200, so over 500 truly simultaneous connections can be refused locally. Linux, which the container and deployment use, is unaffected.
 
-## 12. Security and secret handling
+---
+
+## 13. Security and secret handling
 
 - API keys come only from environment variables. `.env` is listed in `.gitignore` and `.dockerignore`; only `.env.example`, which has empty values, is committed.
-- The key is sent only in the `Authorization` header to the LLM provider. It is never logged, never included in responses, and never baked into the Docker image; tests assert this.
+- The key is sent only in the `Authorization` header to its own LLM provider. It is never logged, never included in responses, and never baked into the Docker image; tests assert this.
 - Logs contain only model labels, HTTP status codes and validation reasons. Error responses are short JSON codes with no stack traces or HTML.
 - The LLM receives only operator-note text. Only the synthetic challenge data from the request is processed.
 
-## 13. Dependencies and credits
+---
+
+## 14. Dependencies and credits
 
 | Dependency                                                                          | Use                          | License        |
 | ----------------------------------------------------------------------------------- | ---------------------------- | -------------- |

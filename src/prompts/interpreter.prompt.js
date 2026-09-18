@@ -27,7 +27,7 @@ Directive types (exactly one per note):
 - no_charge_window: the battery must not or cannot be charged (charging disabled, charger isolated or offline, charging circuit unavailable).
 - no_discharge_window: the battery must not or cannot discharge, supply load, be drawn from, or be used.
 - max_grid_window: grid import / draw / intake / purchase in each hour must not exceed an amount. Put the per-hour limit in max_grid_kwh.
-  A kW limit over whole hours equals the same number of kWh per hour. Convert MWh to kWh (x1000). Grid outage / no grid import / grid unavailable -> max_grid_kwh 0.
+  A kW limit over whole hours equals the same number of kWh per hour. Grid outage / no grid import / grid unavailable -> max_grid_kwh 0.
 - no_op: the note does not impose one of the five constraints on the planned day: unrelated campus news (food, deadlines, bookings, library, sports, clubs, notices, staff),
   events in the past (last week, yesterday, already done), events on a different day (next week, next month, another date),
   or energy information that is not one of the five types (demand forecasts, tariff or price changes, purchases, reports, audits, meetings). Use windows [] and no numeric fields. Never force a note into a directive.
@@ -35,7 +35,8 @@ Directive types (exactly one per note):
 Time rules (24-hour clock):
 - start_hour is INCLUDED, end_hour is EXCLUDED. "1 PM to 3 PM" -> start 13, end 15 (hours 13 and 14).
 - "from X until Y", "between X and Y", "X to Y", "X-Y", "X till Y", "X through Y" (clock times) -> start X, end Y.
-- noon = 12. midnight = 0 as a start and 24 as an end: "until midnight" -> end_hour 24, one window, no split. 12 AM = 0, 12 PM = 12. Spelled numbers ("one until three") are clock hours; infer AM/PM from context (solar events happen in daylight, "evening"/"night" means PM).
+- One AM/PM marker after a range covers BOTH ends: "between 7 and 10 PM", "7-10 PM", "from 7 to 10 in the evening" -> start 19, end 22.
+- noon = 12. midnight = 0 as a start and 24 as an end: "until midnight" -> end_hour 24, one window, no split. 12 AM = 0, 12 PM = 12. Spelled or bare numbers without AM/PM ("one until three", "from 2 to 4") are clock hours; infer AM/PM from context: solar events happen in daylight, so "one until three" for panels/PV means 13 to 15; "evening"/"night" means PM.
 - One hour ("at 6 PM", "during the 18:00 hour", "the 6 PM hour") -> start 18, end 19.
 - "for N hours starting at X", "from X for N hours" -> start X, end X+N.
 - "until X" with no start -> start 0. "after X", "from X onward", "for the rest of the day" -> end 24. "all day", "the whole day", or no time stated -> 0 to 24.
@@ -43,14 +44,17 @@ Time rules (24-hour clock):
 - "today", "tonight", "this evening", "tomorrow" all mean the planned day unless the note clearly points to another week, month or date.
 
 Numbers: use only values stated in the note (words such as "one-fifth", "a quarter", "half" count). Leave out every numeric field that does not apply.
+Units: minimum_energy_kwh and max_grid_kwh are always in kWh. Convert MWh to kWh (x1000): "0.25 MWh" -> 250.
 
 Examples (fields not shown are left out):
 "Expect a 30% cut in rooftop PV between 10:00 and 12:00." -> solar_reduction, windows [{10,12}], remaining_percent 70, reduction_percent 30
 "The arrays will be fully offline from noon until 2 PM." -> solar_reduction, windows [{12,14}], remaining_percent 0, reduction_percent 100
+"Inverter servicing from two until four halves the usable PV output." -> solar_reduction, windows [{14,16}], remaining_percent 50, reduction_percent 50
 "Haze will leave only a quarter of the usual solar yield from 9 to 11 AM." -> solar_reduction, windows [{9,11}], remaining_percent 25, reduction_percent 75
 "Keep at least 120 kWh in reserve from 6 PM until 9 PM." -> minimum_battery_reserve, windows [{18,21}], minimum_energy_kwh 120
 "Hold the battery at or above 40% charge from 5 to 8 PM." -> minimum_battery_reserve, windows [{17,20}], reserve_percent_of_capacity 40
 "Do not charge the battery between 2 PM and 4 PM." -> no_charge_window, windows [{14,16}]
+"Battery charging is blocked from 9 PM until midnight." -> no_charge_window, windows [{21,24}]
 "The battery may not supply load for three hours starting at 7 PM." -> no_discharge_window, windows [{19,22}]
 "Grid draw is capped at 150 kW from 17:00 to 20:00." -> max_grid_window, windows [{17,20}], max_grid_kwh 150
 "Utility outage: no grid supply from 11 PM to 1 AM." -> max_grid_window, windows [{23,24},{0,1}], max_grid_kwh 0

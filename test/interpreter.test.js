@@ -45,13 +45,19 @@ const NO_CHARGE = { directive_type: "no_charge_window", windows: [{ start_hour: 
 const NO_OP = { directive_type: "no_op", windows: [], explanation: "Unrelated." };
 const results = (...items) => ({ results: items.map((it, index) => ({ index, ...it })) });
 
-test("one batched call interprets all notes in order", async () => {
-  mockLlm(() => results(SOLAR, NO_CHARGE, NO_OP));
+const noteOf = (call) => call.user.match(/"text":"([^"]*)"/)[1];
+
+test("one parallel call per note, results returned in note order", async () => {
+  const byNote = { a: SOLAR, b: NO_CHARGE, c: NO_OP };
+  mockLlm((call) => results(byNote[noteOf(call)]));
   const out = await interpretAll(["a", "b", "c"], BATTERY);
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].body.model, "primary-model");
-  assert.equal(calls[0].body.temperature, 0);
-  assert.equal(calls[0].url, "http://llm.invalid/v1/chat/completions");
+  assert.equal(calls.length, 3);
+  assert.deepEqual(calls.map(noteOf).sort(), ["a", "b", "c"]);
+  for (const call of calls) {
+    assert.equal(call.body.model, "primary-model");
+    assert.equal(call.body.temperature, 0);
+    assert.equal(call.url, "http://llm.invalid/v1/chat/completions");
+  }
   assert.deepEqual(
     out.map((o) => [o.note_index, o.directive_type, o.applies]),
     [
@@ -63,6 +69,12 @@ test("one batched call interprets all notes in order", async () => {
   assert.deepEqual(out[0].structured_adjustment, { hours: [13, 14], factor: 0.2 });
 });
 
+test("each call contains exactly one note, so notes cannot influence each other", async () => {
+  mockLlm(() => results(NO_OP));
+  await interpretAll(["first note", "second note", "third note"], BATTERY);
+  for (const call of calls) assert.equal(call.user.match(/"text":/g).length, 1);
+});
+
 test("the LLM sees only note text, never scenario numbers", async () => {
   mockLlm(() => results(NO_OP));
   await interpretAll(["The cafeteria menu changes."], { capacity_kwh: 987654 });
@@ -70,29 +82,17 @@ test("the LLM sees only note text, never scenario numbers", async () => {
   assert.ok(!sent.includes("987654"));
 });
 
-test("results returned out of order are realigned by index", async () => {
-  mockLlm(() => ({
-    results: [
-      { index: 1, ...NO_OP },
-      { index: 0, ...NO_CHARGE },
-    ],
-  }));
-  const out = await interpretAll(["charge note", "menu note"], BATTERY);
-  assert.deepEqual(
-    out.map((o) => o.directive_type),
-    ["no_charge_window", "no_op"],
-  );
-});
-
 test("only the note that failed guardrails is re-asked, with feedback", async () => {
-  mockLlm((call, n) =>
-    n === 1 ? results(SOLAR, { directive_type: "battery_limit", windows: [] }) : results(NO_CHARGE),
-  );
+  let chargingAttempts = 0;
+  mockLlm((call) => {
+    if (noteOf(call) === "solar note") return results(SOLAR);
+    chargingAttempts++;
+    return chargingAttempts === 1 ? results({ directive_type: "battery_limit", windows: [] }) : results(NO_CHARGE);
+  });
   const out = await interpretAll(["solar note", "charging note"], BATTERY);
-  assert.equal(calls.length, 2);
-  assert.match(calls[1].user, /charging note/);
-  assert.doesNotMatch(calls[1].user, /solar note/);
-  assert.match(calls[1].user, /failed validation: directive_type must be one of/);
+  assert.equal(calls.length, 3);
+  assert.equal(noteOf(calls[2]), "charging note");
+  assert.match(calls[2].user, /failed validation: directive_type must be one of/);
   assert.deepEqual(
     out.map((o) => o.directive_type),
     ["solar_reduction", "no_charge_window"],
@@ -107,13 +107,10 @@ test("unparseable reply triggers a retry", async () => {
 });
 
 test("wrong result count triggers a retry", async () => {
-  mockLlm((call, n) => (n === 1 ? results(NO_OP) : results(NO_OP, NO_CHARGE)));
-  const out = await interpretAll(["menu", "charging"], BATTERY);
+  mockLlm((call, n) => (n === 1 ? results(NO_OP, NO_CHARGE) : results(NO_CHARGE)));
+  const out = await interpretAll(["charging"], BATTERY);
   assert.equal(calls.length, 2);
-  assert.deepEqual(
-    out.map((o) => o.directive_type),
-    ["no_op", "no_charge_window"],
-  );
+  assert.equal(out[0].directive_type, "no_charge_window");
 });
 
 test("rate limit on primary moves to the fallback model", async () => {
@@ -166,10 +163,9 @@ test("timeouts fall through to the fallback and stay within budget", async () =>
 test("provider down everywhere -> controlled no_op for every note, no throw", async () => {
   mockLlm(() => 500);
   const out = await interpretAll(["a", "b", "c"], BATTERY);
-  assert.deepEqual(
-    calls.map((c) => c.body.model),
-    ["primary-model", "fallback-model", "fallback-model"],
-  );
+  const count = (model) => calls.filter((c) => c.body.model === model).length;
+  assert.equal(count("primary-model"), 3);
+  assert.equal(count("fallback-model"), 6);
   for (const [i, o] of out.entries()) {
     assert.deepEqual([o.note_index, o.applies, o.directive_type, o.structured_adjustment], [i, false, "no_op", null]);
   }
