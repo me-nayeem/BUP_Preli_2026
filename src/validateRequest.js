@@ -1,9 +1,12 @@
 const isNum = (x) => typeof x === "number" && Number.isFinite(x);
-const B = ["capacity_kwh", "initial_energy_kwh", "minimum_energy_kwh",
-           "max_charge_kwh_per_hour", "max_discharge_kwh_per_hour"];
+const B = [
+  "capacity_kwh",
+  "initial_energy_kwh",
+  "minimum_energy_kwh",
+  "max_charge_kwh_per_hour",
+  "max_discharge_kwh_per_hour",
+];
 
-// Structural problems -> 400, well-formed but semantically impossible -> 422.
-// Unknown extra fields are ignored on purpose so a valid judge case is never rejected.
 function validateRequest(body) {
   const bad = (error) => ({ ok: false, status: 400, error });
   const sem = (error) => ({ ok: false, status: 422, error });
@@ -12,7 +15,8 @@ function validateRequest(body) {
   if (typeof scenario_id !== "string" || !scenario_id.trim()) return bad("scenario_id must be a non-empty string");
   if (!Array.isArray(operator_notes) || operator_notes.length < 1 || operator_notes.length > 3)
     return bad("operator_notes must contain 1-3 items");
-  if (!operator_notes.every((n) => typeof n === "string" && n.trim())) return bad("operator_notes must be non-empty strings");
+  if (!operator_notes.every((n) => typeof n === "string" && n.trim()))
+    return bad("operator_notes must be non-empty strings");
   if (!Array.isArray(hours) || hours.length !== 24) return bad("hours must contain exactly 24 entries");
   const byHour = new Array(24);
   for (const e of hours) {
@@ -26,8 +30,12 @@ function validateRequest(body) {
   if (!battery || typeof battery !== "object" || Array.isArray(battery) || !B.every((k) => isNum(battery[k])))
     return bad("battery fields must all be finite numbers");
   if (byHour.some((e) => e.demand_kwh < 0 || e.solar_kwh < 0)) return sem("demand and solar must be non-negative");
-  if (B.some((k) => battery[k] < 0) || battery.minimum_energy_kwh > battery.capacity_kwh ||
-      battery.initial_energy_kwh < battery.minimum_energy_kwh || battery.initial_energy_kwh > battery.capacity_kwh)
+  if (
+    B.some((k) => battery[k] < 0) ||
+    battery.minimum_energy_kwh > battery.capacity_kwh ||
+    battery.initial_energy_kwh < battery.minimum_energy_kwh ||
+    battery.initial_energy_kwh > battery.capacity_kwh
+  )
     return sem("inconsistent battery parameters");
   return { ok: true, scenario: { scenario_id, operator_notes, hours: byHour, battery } };
 }

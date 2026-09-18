@@ -1,4 +1,6 @@
-try { process.loadEnvFile(); } catch { /* no .env file: rely on real environment variables */ }
+try {
+  process.loadEnvFile();
+} catch {}
 
 const express = require("express");
 const { validateRequest } = require("./validateRequest");
@@ -16,19 +18,27 @@ app.post("/optimize-energy", async (req, res) => {
   if (!v.ok) return res.status(v.status).json({ error: v.error });
   const sc = v.scenario;
   try {
-    // STUB (step 1): every note -> no_op, battery idle. Replaced by the real pipeline later.
     const interps = sc.operator_notes.map((_, i) => ({
-      note_index: i, applies: false, directive_type: "no_op", structured_adjustment: null,
+      note_index: i,
+      applies: false,
+      directive_type: "no_op",
+      structured_adjustment: null,
       explanation: "Stub: interpretation not implemented yet.",
     }));
     const plan = sc.hours.map((d, h) => {
       const solar = r6(Math.min(d.solar_kwh, d.demand_kwh));
-      return { hour: h, grid_kwh: r6(d.demand_kwh - solar), solar_used_kwh: solar, battery_action: "idle",
-               battery_kwh: 0, battery_energy_after_kwh: sc.battery.initial_energy_kwh };
+      return {
+        hour: h,
+        grid_kwh: r6(d.demand_kwh - solar),
+        solar_used_kwh: solar,
+        battery_action: "idle",
+        battery_kwh: 0,
+        battery_energy_after_kwh: sc.battery.initial_energy_kwh,
+      };
     });
     res.status(200).json(assemble(sc, interps, plan));
   } catch (e) {
-    console.error(`[${sc.scenario_id}] error: ${e.message}`); // never log keys/headers
+    console.error(`[${sc.scenario_id}] error: ${e.message}`);
     res.status(500).json({ error: "internal_error" });
   }
 });
@@ -45,11 +55,17 @@ function assemble(sc, interps, plan) {
     `${interps.length - applied.length} note(s) treated as no_op. Battery charges in hours [${ch}] ` +
     `and discharges in hours [${dis}], ending at its starting level. ` +
     `Total grid cost ${total_cost_bdt.toFixed(2)} BDT, peak grid ${peak_grid_kwh.toFixed(2)} kWh.`;
-  return { scenario_id: sc.scenario_id, directive_interpretation: interps, hourly_plan: plan,
-           total_grid_kwh, total_cost_bdt, peak_grid_kwh, plan_summary };
+  return {
+    scenario_id: sc.scenario_id,
+    directive_interpretation: interps,
+    hourly_plan: plan,
+    total_grid_kwh,
+    total_cost_bdt,
+    peak_grid_kwh,
+    plan_summary,
+  };
 }
 
-// Must have 4 args. Converts body-parser errors to JSON 400 instead of Express's HTML page.
 app.use((err, req, res, next) => {
   if (err.type === "entity.parse.failed") return res.status(400).json({ error: "malformed_json" });
   if (err.type === "entity.too.large") return res.status(400).json({ error: "payload_too_large" });

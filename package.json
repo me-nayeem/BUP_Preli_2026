@@ -7,7 +7,9 @@
   "main": "src/server.js",
   "scripts": {
     "dev": "node --watch src/server.js",
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "engines": {
     "node": ">=20.12"
@@ -15,5 +17,8 @@
   "dependencies": {
     "express": "^4.22.3",
     "highs": "^1.15.3"
+  },
+  "devDependencies": {
+    "prettier": "^3.9.8"
   }
 }
