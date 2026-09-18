@@ -8,11 +8,15 @@
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
+    "test": "node --test test/*.test.js",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "eval:notes": "node test/eval/notes.eval.js",
+    "eval:samples": "node test/eval/samples.eval.js",
+    "llm:smoke": "node scripts/llm-smoke.js"
   },
   "engines": {
-    "node": ">=20.12"
+    "node": ">=22"
   },
   "dependencies": {
     "express": "^4.22.3",
