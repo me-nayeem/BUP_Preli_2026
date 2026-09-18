@@ -10,15 +10,15 @@ An HTTP API that reads 1–3 natural-language operator notes with a large langua
 | Docker image    | `<DOCKER_IMAGE>` (for example `docker.io/<user>/gridwise:v1`)     |
 | Service port    | `8000` (override with `PORT`)                                     |
 | Endpoints       | `GET /health`, `POST /optimize-energy`                            |
-| LLM provider    | Google Gemini (OpenAI-compatible endpoint)                        |
-| LLM models      | primary `gemini-3.5-flash-lite`, fallback `gemini-3.1-flash-lite` |
+| LLM providers   | OpenAI and Google Gemini (both via Chat Completions API)          |
+| LLM models      | `gpt-4o-mini` → `gemini-3.5-flash-lite` → `gemini-3.1-flash-lite` |
 | Optimizer       | HiGHS LP solver (`highs` npm package, WebAssembly)                |
 
 ---
 
 ## 1. Quickstart (local, from a clean machine)
 
-**Prerequisites:** Node.js 22 or newer, npm, and a Google Gemini API key (free at <https://aistudio.google.com/apikey>).
+**Prerequisites:** Node.js 22 or newer, npm, and an OpenAI API key. A Google Gemini API key (free at <https://aistudio.google.com/apikey>) is optional and enables the fallback models.
 
 ```bash
 git clone https://github.com/me-nayeem/BUP_Preli_2026.git
@@ -27,7 +27,7 @@ npm ci
 cp .env.example .env          # Windows PowerShell: Copy-Item .env.example .env
 ```
 
-Open `.env` and set `LLM_API_KEY`. All other values in `.env.example` already have working defaults.
+Open `.env` and set `LLM_API_KEY` (OpenAI). Optionally set `LLM_FALLBACK_API_KEY` (Gemini) to enable the two Gemini fallback models. All other values in `.env.example` already have working defaults.
 
 ```bash
 npm start
@@ -71,9 +71,12 @@ The explanation text may be worded differently on each run; the structured field
 ```bash
 docker pull <DOCKER_IMAGE>
 docker run --rm -p 8000:8000 \
-  -e LLM_API_KEY=<your-gemini-key> \
-  -e LLM_MODEL=gemini-3.5-flash-lite \
-  -e LLM_FALLBACK_MODEL=gemini-3.1-flash-lite \
+  -e LLM_API_KEY=<your-openai-key> \
+  -e LLM_MODEL=gpt-4o-mini \
+  -e LLM_FALLBACK_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai \
+  -e LLM_FALLBACK_API_KEY=<your-gemini-key> \
+  -e LLM_FALLBACK_MODEL=gemini-3.5-flash-lite \
+  -e LLM_FALLBACK2_MODEL=gemini-3.1-flash-lite \
   <DOCKER_IMAGE>
 curl http://localhost:8000/health
 ```
@@ -88,21 +91,22 @@ The image uses `node:22-slim`, runs as the non-root `node` user, binds to `0.0.0
 
 Only variable names are listed here; never commit real values.
 
-| Variable                        | Required | Default                                                   | Meaning                                                               |
-| ------------------------------- | -------- | --------------------------------------------------------- | --------------------------------------------------------------------- |
-| `LLM_API_KEY`                   | yes      | none                                                      | Gemini API key for the primary model                                  |
-| `LLM_MODEL`                     | yes      | none                                                      | Primary model, e.g. `gemini-3.5-flash-lite`                           |
-| `LLM_BASE_URL`                  | no       | `https://generativelanguage.googleapis.com/v1beta/openai` | Any OpenAI-compatible `/chat/completions` base URL                    |
-| `LLM_REASONING_EFFORT`          | no       | unset (model default)                                     | Sent as `reasoning_effort` only when set                              |
-| `LLM_FALLBACK_MODEL`            | no       | unset (no fallback)                                       | Second model, used on 429 / 5xx / timeout / invalid output            |
-| `LLM_FALLBACK_API_KEY`          | no       | same as `LLM_API_KEY`                                     | Separate key for the fallback, if desired                             |
-| `LLM_FALLBACK_BASE_URL`         | no       | same as `LLM_BASE_URL`                                    | Allows a fallback on a different provider                             |
-| `LLM_FALLBACK_REASONING_EFFORT` | no       | same as primary                                           |                                                                       |
-| `LLM_TIMEOUT_MS`                | no       | `8000`                                                    | Timeout per LLM call                                                  |
-| `LLM_TOTAL_BUDGET_MS`           | no       | `22000`                                                   | Total LLM time per request (keeps every request under the 30 s limit) |
-| `LLM_MAX_TOKENS`                | no       | `2048`                                                    | Output token limit per call                                           |
-| `LLM_JSON_MODE`                 | no       | `true`                                                    | Request `response_format: json_object`                                |
-| `PORT` / `HOST`                 | no       | `8000` / `0.0.0.0`                                        | Listen address                                                        |
+| Variable                        | Required | Default                                         | Meaning                                                                   |
+| ------------------------------- | -------- | ----------------------------------------------- | ------------------------------------------------------------------------- |
+| `LLM_API_KEY`                   | yes      | none                                            | API key for the primary model (OpenAI)                                    |
+| `LLM_MODEL`                     | yes      | none                                            | Primary model, e.g. `gpt-4o-mini`                                         |
+| `LLM_BASE_URL`                  | no       | `https://api.openai.com/v1`                     | Any OpenAI-compatible `/chat/completions` base URL                        |
+| `LLM_REASONING_EFFORT`          | no       | unset (model default)                           | Sent as `reasoning_effort` only when set                                  |
+| `LLM_FALLBACK_MODEL`            | no       | unset (no fallback)                             | Second model, used on 429 / 5xx / timeout / invalid output                |
+| `LLM_FALLBACK_BASE_URL`         | no       | same as `LLM_BASE_URL`                          | e.g. `https://generativelanguage.googleapis.com/v1beta/openai` for Gemini |
+| `LLM_FALLBACK_API_KEY`          | no       | `LLM_API_KEY`, only if the base URL is the same | Key for the fallback provider                                             |
+| `LLM_FALLBACK_REASONING_EFFORT` | no       | unset                                           | Sent only when set                                                        |
+| `LLM_FALLBACK2_*`               | no       | inherits URL and key from `LLM_FALLBACK_*`      | Optional third model (`_MODEL`, `_BASE_URL`, `_API_KEY`, ...)             |
+| `LLM_TIMEOUT_MS`                | no       | `8000`                                          | Timeout per LLM call                                                      |
+| `LLM_TOTAL_BUDGET_MS`           | no       | `22000`                                         | Total LLM time per request (keeps every request under the 30 s limit)     |
+| `LLM_MAX_TOKENS`                | no       | `2048`                                          | Output token limit per call                                               |
+| `LLM_JSON_MODE`                 | no       | `true`                                          | Request `response_format: json_object`                                    |
+| `PORT` / `HOST`                 | no       | `8000` / `0.0.0.0`                              | Listen address                                                            |
 
 If no LLM is configured, the service still starts and returns valid schedules, but every note is reported as `no_op`.
 
@@ -114,7 +118,7 @@ If no LLM is configured, the service still starts and returns valid schedules, b
 POST /optimize-energy
   │
   ├─ 1. Request validation      400 malformed/structural, 422 semantically impossible
-  ├─ 2. LLM interpreter         one batched Gemini call for all notes (note text only)
+  ├─ 2. LLM interpreter         one batched LLM call for all notes (note text only)
   ├─ 3. Guardrails              deterministic validation + normalization of every LLM result
   │      └─ repair loop         only rejected notes are re-asked, with the exact error; then fallback model
   ├─ 4. Directive → limits      per-hour effective solar, min SoC, charge/discharge caps, grid caps
@@ -151,8 +155,12 @@ scripts/llm-smoke.js            checks that the configured models exist and resp
 
 The language model is the **only** component that reads operator notes. Its structured output directly produces the constraints the optimizer uses.
 
-- **Provider:** Google Gemini through its OpenAI-compatible Chat Completions endpoint, called with plain `fetch`.
-- **Models:** primary `gemini-3.5-flash-lite` (default minimal thinking, about 1.5–2 s per request). Fallback `gemini-3.1-flash-lite`, a separate model with its own quota.
+- **Providers:** OpenAI and Google Gemini (through its OpenAI-compatible endpoint), both called through the Chat Completions API with plain `fetch`.
+- **Models, tried in this order:**
+  1. `gpt-4o-mini` (OpenAI): primary; paid API with high rate limits.
+  2. `gemini-3.5-flash-lite` (Gemini): a different provider, so one provider's outage cannot take down every model.
+  3. `gemini-3.1-flash-lite` (Gemini): a separate Gemini model with its own quota.
+- **Keys:** each provider uses its own key. A fallback reuses the previous model's key only when its base URL is the **same**, so an OpenAI key is never sent to Gemini or the other way round.
 - **Settings:** `temperature: 0`, JSON mode, system prompt in [src/prompts/interpreter.prompt.js](src/prompts/interpreter.prompt.js).
 
 **Single call, then repair:**
@@ -160,7 +168,7 @@ The language model is the **only** component that reads operator notes. Its stru
 1. All notes of a request go to the model in **one** call as `{"notes":[{"index":0,"text":"..."}]}`. The model returns `{"results":[...]}`, one object per note. This keeps normal usage at 1 LLM call per request, which matters under free-tier rate limits.
 2. Every result passes through the guardrails. Accepted notes are kept.
 3. Only the **rejected** notes are sent back, together with the model's previous output and the exact validation error, for example `remaining_percent + reduction_percent must equal 100`.
-4. On HTTP 429, 5xx or a timeout, the service switches to the fallback model immediately. Auth errors (401/403/404) disable that model for the request. All attempts share a 22 s budget.
+4. On HTTP 429, 5xx or a timeout, the service switches to the next model immediately. Auth errors (401/403/404) disable that model for the request. All attempts share a 22 s budget.
 5. If every attempt fails, the affected note becomes a controlled `no_op` with an explanation. The service never crashes and never invents a directive.
 
 **The model reports raw facts; code does the arithmetic.** The model returns `windows` (`start_hour`/`end_hour`), `remaining_percent` **and** `reduction_percent`, `minimum_energy_kwh` **or** `reserve_percent_of_capacity`, and `max_grid_kwh`. Code then:
@@ -262,8 +270,8 @@ Other request details:
 ## 9. Testing
 
 ```bash
-npm test               # 144 offline tests, no LLM calls, about 10 s
-npm run llm:smoke      # checks that the configured Gemini models exist and respond
+npm test               # 148 offline tests, no LLM calls, about 10 s
+npm run llm:smoke      # checks that every configured model exists and responds
 npm run eval:notes     # 42 paraphrased notes and distractors against the real LLM (about 14 calls)
 npm start              # then, in a second terminal:
 npm run eval:samples   # all 10 public samples end-to-end against a running server
@@ -276,7 +284,7 @@ Latest results:
 
 | Suite                                       | Result                                                                                                                                                           |
 | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm test`                                  | 144/144 pass                                                                                                                                                     |
+| `npm test`                                  | 148/148 pass                                                                                                                                                     |
 | `eval:notes`                                | 42/42 exact (type, hours, value) with `gemini-3.5-flash-lite`                                                                                                    |
 | `eval:samples` (local and Docker container) | 10/10 pass: interpretation matches the reference, schedule replays clean against the ground-truth directives, cost equals the optimal reference; p95 about 2.2 s |
 
@@ -304,7 +312,7 @@ What `npm test` covers:
 
 ## 11. Known limitations
 
-- The interpretation depends on the Gemini API being available and within quota. If both models fail within the time budget, the affected notes are returned as `no_op`; the schedule stays valid but ignores those notes.
+- The interpretation depends on the LLM providers being available and within quota. If every configured model fails within the time budget, the affected notes are returned as `no_op`; the schedule stays valid but ignores those notes.
 - The note cache is in memory and per process, so it is not shared between instances or kept across restarts.
 - Directive combinations that make the problem infeasible return 422 rather than a partial schedule. Organizer scenarios are stated to be feasible.
 - Numeric inputs are limited to ±1e9. Negative tariffs are accepted, since the spec does not forbid them.
@@ -319,12 +327,12 @@ What `npm test` covers:
 
 ## 13. Dependencies and credits
 
-| Dependency                                                                          | Use                          | License      |
-| ----------------------------------------------------------------------------------- | ---------------------------- | ------------ |
-| [Express 4](https://expressjs.com/)                                                 | HTTP server                  | MIT          |
-| [highs](https://www.npmjs.com/package/highs) (HiGHS solver compiled to WebAssembly) | Linear programming           | MIT          |
-| [Prettier](https://prettier.io/) (dev only)                                         | Code formatting              | MIT          |
-| Node.js built-ins (`fetch`, `node:test`)                                            | LLM HTTP client, test runner | MIT          |
-| Google Gemini API                                                                   | Operator-note interpretation | Google terms |
+| Dependency                                                                          | Use                          | License        |
+| ----------------------------------------------------------------------------------- | ---------------------------- | -------------- |
+| [Express 4](https://expressjs.com/)                                                 | HTTP server                  | MIT            |
+| [highs](https://www.npmjs.com/package/highs) (HiGHS solver compiled to WebAssembly) | Linear programming           | MIT            |
+| [Prettier](https://prettier.io/) (dev only)                                         | Code formatting              | MIT            |
+| Node.js built-ins (`fetch`, `node:test`)                                            | LLM HTTP client, test runner | MIT            |
+| OpenAI API and Google Gemini API                                                    | Operator-note interpretation | Provider terms |
 
 **AI assistance:** Claude Code (Anthropic) was used as a coding assistant during development. The architecture, the problem analysis and the final review of all code are the team's own work.

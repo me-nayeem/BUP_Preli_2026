@@ -58,7 +58,7 @@ function expandWindows(windows) {
     if (end === 0 && start > 0) end = HOURS;
     if (start < 0 || end > HOURS || end <= start)
       return fail(
-        `window [${start},${end}) is invalid: need 0 <= start_hour < end_hour <= 24; split windows that cross midnight`,
+        `window [${start},${end}) is invalid: need 0 <= start_hour < end_hour <= 24. "until midnight" means end_hour 24 (no split); split windows only when the period continues into the early morning hours after midnight`,
       );
     for (let h = start; h < end; h++) set.add(h);
   }

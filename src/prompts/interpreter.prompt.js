@@ -8,12 +8,13 @@ Result object:
 {"index": int,
  "directive_type": "solar_reduction" | "minimum_battery_reserve" | "no_charge_window" | "no_discharge_window" | "max_grid_window" | "no_op",
  "windows": [{"start_hour": int, "end_hour": int}],
- "remaining_percent": number|null,
- "reduction_percent": number|null,
- "minimum_energy_kwh": number|null,
- "reserve_percent_of_capacity": number|null,
- "max_grid_kwh": number|null,
- "explanation": "one short sentence"}
+ "remaining_percent": number,
+ "reduction_percent": number,
+ "minimum_energy_kwh": number,
+ "reserve_percent_of_capacity": number,
+ "max_grid_kwh": number,
+ "explanation": "at most 12 words"}
+Include only the numeric fields the directive type needs; leave the others out entirely.
 
 Directive types (exactly one per note):
 - solar_reduction: usable solar / PV / rooftop panel output is reduced or unavailable during some hours (cleaning, washing, maintenance, inverter work, shading, clouds, haze, dust, outage).
@@ -29,21 +30,21 @@ Directive types (exactly one per note):
   A kW limit over whole hours equals the same number of kWh per hour. Convert MWh to kWh (x1000). Grid outage / no grid import / grid unavailable -> max_grid_kwh 0.
 - no_op: the note does not impose one of the five constraints on the planned day: unrelated campus news (food, deadlines, bookings, library, sports, clubs, notices, staff),
   events in the past (last week, yesterday, already done), events on a different day (next week, next month, another date),
-  or energy information that is not one of the five types (demand forecasts, tariff or price changes, purchases, reports, audits, meetings). Use windows [] and null numbers. Never force a note into a directive.
+  or energy information that is not one of the five types (demand forecasts, tariff or price changes, purchases, reports, audits, meetings). Use windows [] and no numeric fields. Never force a note into a directive.
 
 Time rules (24-hour clock):
 - start_hour is INCLUDED, end_hour is EXCLUDED. "1 PM to 3 PM" -> start 13, end 15 (hours 13 and 14).
 - "from X until Y", "between X and Y", "X to Y", "X-Y", "X till Y", "X through Y" (clock times) -> start X, end Y.
-- noon = 12. midnight = 0 as a start, 24 as an end. 12 AM = 0, 12 PM = 12. Spelled numbers ("one until three") are clock hours; infer AM/PM from context (solar events happen in daylight, "evening"/"night" means PM).
+- noon = 12. midnight = 0 as a start and 24 as an end: "until midnight" -> end_hour 24, one window, no split. 12 AM = 0, 12 PM = 12. Spelled numbers ("one until three") are clock hours; infer AM/PM from context (solar events happen in daylight, "evening"/"night" means PM).
 - One hour ("at 6 PM", "during the 18:00 hour", "the 6 PM hour") -> start 18, end 19.
 - "for N hours starting at X", "from X for N hours" -> start X, end X+N.
 - "until X" with no start -> start 0. "after X", "from X onward", "for the rest of the day" -> end 24. "all day", "the whole day", or no time stated -> 0 to 24.
 - A period crossing midnight is split: 10 PM to 2 AM -> [{"start_hour":22,"end_hour":24},{"start_hour":0,"end_hour":2}]. Several separate periods -> several windows.
 - "today", "tonight", "this evening", "tomorrow" all mean the planned day unless the note clearly points to another week, month or date.
 
-Numbers: use only values stated in the note (words such as "one-fifth", "a quarter", "half" count). Every numeric field that does not apply is null.
+Numbers: use only values stated in the note (words such as "one-fifth", "a quarter", "half" count). Leave out every numeric field that does not apply.
 
-Examples (fields not shown are null):
+Examples (fields not shown are left out):
 "Expect a 30% cut in rooftop PV between 10:00 and 12:00." -> solar_reduction, windows [{10,12}], remaining_percent 70, reduction_percent 30
 "The arrays will be fully offline from noon until 2 PM." -> solar_reduction, windows [{12,14}], remaining_percent 0, reduction_percent 100
 "Haze will leave only a quarter of the usual solar yield from 9 to 11 AM." -> solar_reduction, windows [{9,11}], remaining_percent 25, reduction_percent 75

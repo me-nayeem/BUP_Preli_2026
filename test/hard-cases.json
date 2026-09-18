@@ -1,0 +1,683 @@
+{
+  "description": "GridWise hard test cases. Expected costs computed with an independent LP (SciPy/HiGHS). Equivalent optimal schedules may differ; only the optimal COST is unique.",
+  "tolerance": 0.01,
+  "cases": [
+    {
+      "name": "HARD-A: three interacting directives (factor inversion, % of capacity, MWh + midnight)",
+      "request": {
+        "scenario_id": "HARD-A-001",
+        "operator_notes": [
+          "Panel-washing crews will be on the roof from 11:00 to 14:00; expect usable PV output to fall by three quarters during that window.",
+          "For the evening fire drill, keep the battery at no less than 70% of its capacity from 5 PM until 9 PM.",
+          "The distribution feeder can deliver at most 0.18 MWh per hour from 9 PM until midnight."
+        ],
+        "hours": [
+          {
+            "hour": 0,
+            "demand_kwh": 210,
+            "solar_kwh": 0,
+            "tariff_bdt_per_kwh": 6
+          },
+          {
+            "hour": 1,
+            "demand_kwh": 200,
+            "solar_kwh": 0,
+            "tariff_bdt_per_kwh": 6
+          },
+          {
+            "hour": 2,
+            "demand_kwh": 195,
+            "solar_kwh": 0,
+            "tariff_bdt_per_kwh": 6
+          },
+          {
+            "hour": 3,
+            "demand_kwh": 190,
+            "solar_kwh": 0,
+            "tariff_bdt_per_kwh": 6
+          },
+          {
+            "hour": 4,
+            "demand_kwh": 195,
+            "solar_kwh": 0,
+            "tariff_bdt_per_kwh": 6
+          },
+          {
+            "hour": 5,
+            "demand_kwh": 215,
+            "solar_kwh": 0,
+            "tariff_bdt_per_kwh": 6.5
+          },
+          {
+            "hour": 6,
+            "demand_kwh": 250,
+            "solar_kwh": 20,
+            "tariff_bdt_per_kwh": 7.5
+          },
+          {
+            "hour": 7,
+            "demand_kwh": 290,
+            "solar_kwh": 70,
+            "tariff_bdt_per_kwh": 9
+          },
+          {
+            "hour": 8,
+            "demand_kwh": 330,
+            "solar_kwh": 140,
+            "tariff_bdt_per_kwh": 9.5
+          },
+          {
+            "hour": 9,
+            "demand_kwh": 360,
+            "solar_kwh": 220,
+            "tariff_bdt_per_kwh": 10
+          },
+          {
+            "hour": 10,
+            "demand_kwh": 380,
+            "solar_kwh": 300,
+            "tariff_bdt_per_kwh": 10
+          },
+          {
+            "hour": 11,
+            "demand_kwh": 390,
+            "solar_kwh": 370,
+            "tariff_bdt_per_kwh": 10.5
+          },
+          {
+            "hour": 12,
+            "demand_kwh": 385,
+            "solar_kwh": 420,
+            "tariff_bdt_per_kwh": 10.5
+          },
+          {
+            "hour": 13,
+            "demand_kwh": 380,
+            "solar_kwh": 430,
+            "tariff_bdt_per_kwh": 10
+          },
+          {
+            "hour": 14,
+            "demand_kwh": 370,
+            "solar_kwh": 380,
+            "tariff_bdt_per_kwh": 10
+          },
+          {
+            "hour": 15,
+            "demand_kwh": 360,
+            "solar_kwh": 300,
+            "tariff_bdt_per_kwh": 10.5
+          },
+          {
+            "hour": 16,
+            "demand_kwh": 370,
+            "solar_kwh": 200,
+            "tariff_bdt_per_kwh": 11.5
+          },
+          {
+            "hour": 17,
+            "demand_kwh": 400,
+            "solar_kwh": 90,
+            "tariff_bdt_per_kwh": 13.5
+          },
+          {
+            "hour": 18,
+            "demand_kwh": 430,
+            "solar_kwh": 20,
+            "tariff_bdt_per_kwh": 14.5
+          },
+          {
+            "hour": 19,
+            "demand_kwh": 440,
+            "solar_kwh": 0,
+            "tariff_bdt_per_kwh": 14.5
+          },
+          {
+            "hour": 20,
+            "demand_kwh": 420,
+            "solar_kwh": 0,
+            "tariff_bdt_per_kwh": 14
+          },
+          {
+            "hour": 21,
+            "demand_kwh": 260,
+            "solar_kwh": 0,
+            "tariff_bdt_per_kwh": 12.5
+          },
+          {
+            "hour": 22,
+            "demand_kwh": 240,
+            "solar_kwh": 0,
+            "tariff_bdt_per_kwh": 11
+          },
+          {
+            "hour": 23,
+            "demand_kwh": 220,
+            "solar_kwh": 0,
+            "tariff_bdt_per_kwh": 8
+          }
+        ],
+        "battery": {
+          "capacity_kwh": 600,
+          "initial_energy_kwh": 300,
+          "minimum_energy_kwh": 60,
+          "max_charge_kwh_per_hour": 150,
+          "max_discharge_kwh_per_hour": 150
+        }
+      },
+      "expected": {
+        "directive_interpretation": [
+          {
+            "note_index": 0,
+            "applies": true,
+            "directive_type": "solar_reduction",
+            "structured_adjustment": {
+              "hours": [11, 12, 13],
+              "factor": 0.25
+            },
+            "why": "'fall BY three quarters' = 75% reduction -> 25% remains -> factor 0.25; 11:00-14:00 end-exclusive -> [11,12,13]"
+          },
+          {
+            "note_index": 1,
+            "applies": true,
+            "directive_type": "minimum_battery_reserve",
+            "structured_adjustment": {
+              "hours": [17, 18, 19, 20],
+              "minimum_energy_kwh": 420
+            },
+            "why": "70% of capacity 600 = 420 kWh; 5 PM until 9 PM end-exclusive -> [17,18,19,20]"
+          },
+          {
+            "note_index": 2,
+            "applies": true,
+            "directive_type": "max_grid_window",
+            "structured_adjustment": {
+              "hours": [21, 22, 23],
+              "max_grid_kwh": 180
+            },
+            "why": "0.18 MWh = 180 kWh per hour; 9 PM until midnight -> end 24 -> [21,22,23]"
+          }
+        ],
+        "optimal_total_cost_bdt": 54261.25,
+        "wrong_answer_costs": [
+          {
+            "cost_bdt": 48022.5,
+            "result": "valid but wrong plan",
+            "likely_bug": "solar factor inverted (0.75 instead of 0.25)"
+          },
+          {
+            "cost_bdt": 57111.25,
+            "result": "valid but wrong plan",
+            "likely_bug": "solar window end-inclusive [11..14]"
+          },
+          {
+            "cost_bdt": 44972.5,
+            "result": "valid but wrong plan",
+            "likely_bug": "solar note ignored / marked no_op"
+          },
+          {
+            "cost_bdt": 54216.25,
+            "result": "valid but wrong plan",
+            "likely_bug": "reserve ignored, or 70% read as 70 kWh, or hours read as AM"
+          },
+          {
+            "cost_bdt": 54321.25,
+            "result": "valid but wrong plan",
+            "likely_bug": "reserve window end-inclusive [17..21]"
+          },
+          {
+            "cost_bdt": 53406.25,
+            "result": "valid but wrong plan",
+            "likely_bug": "grid cap ignored, or midnight read as end=23 ([21,22] only)"
+          },
+          {
+            "cost_bdt": null,
+            "result": "infeasible (expect 422)",
+            "likely_bug": "grid cap not converted from MWh (0.18 kWh)"
+          }
+        ]
+      }
+    },
+    {
+      "name": "HARD-B: energy-sounding distractor, duration wording, 'locked out' wording, shuffled hours + unknown field",
+      "request": {
+        "scenario_id": "HARD-B-002",
+        "site": "BUP-main-campus",
+        "operator_notes": [
+          "Rooftop panels were inspected yesterday and every inverter passed.",
+          "Because of a BMS firmware update, the battery cannot accept any charge for three hours starting at 1 PM.",
+          "Battery output to campus loads is locked out from 6 PM to 8 PM for relay testing."
+        ],
+        "hours": [
+          {
+            "hour": 5,
+            "demand_kwh": 215,
+            "solar_kwh": 0,
+            "tariff_bdt_per_kwh": 6.5
+          },
+          {
+            "hour": 18,
+            "demand_kwh": 430,
+            "solar_kwh": 20,
+            "tariff_bdt_per_kwh": 14.5
+          },
+          {
+            "hour": 22,
+            "demand_kwh": 240,
+            "solar_kwh": 0,
+            "tariff_bdt_per_kwh": 11
+          },
+          {
+            "hour": 15,
+            "demand_kwh": 360,
+            "solar_kwh": 300,
+            "tariff_bdt_per_kwh": 10.5
+          },
+          {
+            "hour": 7,
+            "demand_kwh": 290,
+            "solar_kwh": 70,
+            "tariff_bdt_per_kwh": 9
+          },
+          {
+            "hour": 14,
+            "demand_kwh": 370,
+            "solar_kwh": 380,
+            "tariff_bdt_per_kwh": 10
+          },
+          {
+            "hour": 23,
+            "demand_kwh": 220,
+            "solar_kwh": 0,
+            "tariff_bdt_per_kwh": 8
+          },
+          {
+            "hour": 21,
+            "demand_kwh": 260,
+            "solar_kwh": 0,
+            "tariff_bdt_per_kwh": 12.5
+          },
+          {
+            "hour": 6,
+            "demand_kwh": 250,
+            "solar_kwh": 20,
+            "tariff_bdt_per_kwh": 7.5
+          },
+          {
+            "hour": 19,
+            "demand_kwh": 440,
+            "solar_kwh": 0,
+            "tariff_bdt_per_kwh": 14.5
+          },
+          {
+            "hour": 13,
+            "demand_kwh": 380,
+            "solar_kwh": 430,
+            "tariff_bdt_per_kwh": 10
+          },
+          {
+            "hour": 16,
+            "demand_kwh": 370,
+            "solar_kwh": 200,
+            "tariff_bdt_per_kwh": 11.5
+          },
+          {
+            "hour": 8,
+            "demand_kwh": 330,
+            "solar_kwh": 140,
+            "tariff_bdt_per_kwh": 9.5
+          },
+          {
+            "hour": 0,
+            "demand_kwh": 210,
+            "solar_kwh": 0,
+            "tariff_bdt_per_kwh": 6
+          },
+          {
+            "hour": 9,
+            "demand_kwh": 360,
+            "solar_kwh": 220,
+            "tariff_bdt_per_kwh": 10
+          },
+          {
+            "hour": 11,
+            "demand_kwh": 390,
+            "solar_kwh": 370,
+            "tariff_bdt_per_kwh": 10.5
+          },
+          {
+            "hour": 3,
+            "demand_kwh": 190,
+            "solar_kwh": 0,
+            "tariff_bdt_per_kwh": 6
+          },
+          {
+            "hour": 17,
+            "demand_kwh": 400,
+            "solar_kwh": 90,
+            "tariff_bdt_per_kwh": 13.5
+          },
+          {
+            "hour": 2,
+            "demand_kwh": 195,
+            "solar_kwh": 0,
+            "tariff_bdt_per_kwh": 6
+          },
+          {
+            "hour": 1,
+            "demand_kwh": 200,
+            "solar_kwh": 0,
+            "tariff_bdt_per_kwh": 6
+          },
+          {
+            "hour": 20,
+            "demand_kwh": 420,
+            "solar_kwh": 0,
+            "tariff_bdt_per_kwh": 14
+          },
+          {
+            "hour": 12,
+            "demand_kwh": 385,
+            "solar_kwh": 420,
+            "tariff_bdt_per_kwh": 10.5
+          },
+          {
+            "hour": 4,
+            "demand_kwh": 195,
+            "solar_kwh": 0,
+            "tariff_bdt_per_kwh": 6
+          },
+          {
+            "hour": 10,
+            "demand_kwh": 380,
+            "solar_kwh": 300,
+            "tariff_bdt_per_kwh": 10
+          }
+        ],
+        "battery": {
+          "capacity_kwh": 500,
+          "initial_energy_kwh": 250,
+          "minimum_energy_kwh": 50,
+          "max_charge_kwh_per_hour": 120,
+          "max_discharge_kwh_per_hour": 120
+        }
+      },
+      "expected": {
+        "directive_interpretation": [
+          {
+            "note_index": 0,
+            "applies": false,
+            "directive_type": "no_op",
+            "structured_adjustment": null,
+            "why": "past event (yesterday), no rule for today's schedule -> no_op even though it mentions panels/inverters"
+          },
+          {
+            "note_index": 1,
+            "applies": true,
+            "directive_type": "no_charge_window",
+            "structured_adjustment": {
+              "hours": [13, 14, 15]
+            },
+            "why": "'for three hours starting at 1 PM' -> [13, 16) -> [13,14,15]"
+          },
+          {
+            "note_index": 2,
+            "applies": true,
+            "directive_type": "no_discharge_window",
+            "structured_adjustment": {
+              "hours": [18, 19]
+            },
+            "why": "'battery output to loads locked out' = no discharge; 6 PM to 8 PM -> [18,19]"
+          }
+        ],
+        "optimal_total_cost_bdt": 45027.5,
+        "wrong_answer_costs": [
+          {
+            "cost_bdt": 43887.5,
+            "result": "valid but wrong plan",
+            "likely_bug": "all notes no_op / directives not applied, or charge/discharge types swapped"
+          },
+          {
+            "cost_bdt": 44432.5,
+            "result": "valid but wrong plan",
+            "likely_bug": "no_charge hours read as AM [1,2,3]"
+          },
+          {
+            "cost_bdt": 45372.5,
+            "result": "valid but wrong plan",
+            "likely_bug": "no_discharge window end-inclusive [18,19,20]"
+          },
+          {
+            "cost_bdt": 44487.5,
+            "result": "valid but wrong plan",
+            "likely_bug": "no_discharge note ignored"
+          },
+          {
+            "cost_bdt": 44427.5,
+            "result": "valid but wrong plan",
+            "likely_bug": "no_charge note ignored"
+          }
+        ],
+        "robustness_note": "hours array is deliberately shuffled and there is an extra top-level field 'site'. A 400 here (while A and C pass) means your request validation is too strict."
+      }
+    },
+    {
+      "name": "HARD-C: boundary hour 0, zero grid cap, zero solar factor, demand-change distractor",
+      "request": {
+        "scenario_id": "HARD-C-003",
+        "operator_notes": [
+          "The utility feeder is out for the first two hours after midnight, so no grid import is possible then.",
+          "An inverter fault takes the rooftop array completely offline during the noon hour.",
+          "The campus cafeteria will close early at 8 PM for staff training."
+        ],
+        "hours": [
+          {
+            "hour": 0,
+            "demand_kwh": 210,
+            "solar_kwh": 0,
+            "tariff_bdt_per_kwh": 6
+          },
+          {
+            "hour": 1,
+            "demand_kwh": 200,
+            "solar_kwh": 0,
+            "tariff_bdt_per_kwh": 6
+          },
+          {
+            "hour": 2,
+            "demand_kwh": 195,
+            "solar_kwh": 0,
+            "tariff_bdt_per_kwh": 6
+          },
+          {
+            "hour": 3,
+            "demand_kwh": 190,
+            "solar_kwh": 0,
+            "tariff_bdt_per_kwh": 6
+          },
+          {
+            "hour": 4,
+            "demand_kwh": 195,
+            "solar_kwh": 0,
+            "tariff_bdt_per_kwh": 6
+          },
+          {
+            "hour": 5,
+            "demand_kwh": 215,
+            "solar_kwh": 0,
+            "tariff_bdt_per_kwh": 6.5
+          },
+          {
+            "hour": 6,
+            "demand_kwh": 250,
+            "solar_kwh": 20,
+            "tariff_bdt_per_kwh": 7.5
+          },
+          {
+            "hour": 7,
+            "demand_kwh": 290,
+            "solar_kwh": 70,
+            "tariff_bdt_per_kwh": 9
+          },
+          {
+            "hour": 8,
+            "demand_kwh": 330,
+            "solar_kwh": 140,
+            "tariff_bdt_per_kwh": 9.5
+          },
+          {
+            "hour": 9,
+            "demand_kwh": 360,
+            "solar_kwh": 220,
+            "tariff_bdt_per_kwh": 10
+          },
+          {
+            "hour": 10,
+            "demand_kwh": 380,
+            "solar_kwh": 300,
+            "tariff_bdt_per_kwh": 10
+          },
+          {
+            "hour": 11,
+            "demand_kwh": 390,
+            "solar_kwh": 370,
+            "tariff_bdt_per_kwh": 10.5
+          },
+          {
+            "hour": 12,
+            "demand_kwh": 385,
+            "solar_kwh": 420,
+            "tariff_bdt_per_kwh": 10.5
+          },
+          {
+            "hour": 13,
+            "demand_kwh": 380,
+            "solar_kwh": 430,
+            "tariff_bdt_per_kwh": 10
+          },
+          {
+            "hour": 14,
+            "demand_kwh": 370,
+            "solar_kwh": 380,
+            "tariff_bdt_per_kwh": 10
+          },
+          {
+            "hour": 15,
+            "demand_kwh": 360,
+            "solar_kwh": 300,
+            "tariff_bdt_per_kwh": 10.5
+          },
+          {
+            "hour": 16,
+            "demand_kwh": 370,
+            "solar_kwh": 200,
+            "tariff_bdt_per_kwh": 11.5
+          },
+          {
+            "hour": 17,
+            "demand_kwh": 400,
+            "solar_kwh": 90,
+            "tariff_bdt_per_kwh": 13.5
+          },
+          {
+            "hour": 18,
+            "demand_kwh": 430,
+            "solar_kwh": 20,
+            "tariff_bdt_per_kwh": 14.5
+          },
+          {
+            "hour": 19,
+            "demand_kwh": 440,
+            "solar_kwh": 0,
+            "tariff_bdt_per_kwh": 14.5
+          },
+          {
+            "hour": 20,
+            "demand_kwh": 420,
+            "solar_kwh": 0,
+            "tariff_bdt_per_kwh": 14
+          },
+          {
+            "hour": 21,
+            "demand_kwh": 260,
+            "solar_kwh": 0,
+            "tariff_bdt_per_kwh": 12.5
+          },
+          {
+            "hour": 22,
+            "demand_kwh": 240,
+            "solar_kwh": 0,
+            "tariff_bdt_per_kwh": 11
+          },
+          {
+            "hour": 23,
+            "demand_kwh": 220,
+            "solar_kwh": 0,
+            "tariff_bdt_per_kwh": 8
+          }
+        ],
+        "battery": {
+          "capacity_kwh": 800,
+          "initial_energy_kwh": 500,
+          "minimum_energy_kwh": 80,
+          "max_charge_kwh_per_hour": 250,
+          "max_discharge_kwh_per_hour": 250
+        }
+      },
+      "expected": {
+        "directive_interpretation": [
+          {
+            "note_index": 0,
+            "applies": true,
+            "directive_type": "max_grid_window",
+            "structured_adjustment": {
+              "hours": [0, 1],
+              "max_grid_kwh": 0
+            },
+            "why": "'no grid import possible' -> cap 0; first two hours after midnight -> [0,1]"
+          },
+          {
+            "note_index": 1,
+            "applies": true,
+            "directive_type": "solar_reduction",
+            "structured_adjustment": {
+              "hours": [12],
+              "factor": 0
+            },
+            "why": "'completely offline' -> 0% remains -> factor 0 (NOT no_op); 'the noon hour' -> [12]"
+          },
+          {
+            "note_index": 2,
+            "applies": false,
+            "directive_type": "no_op",
+            "structured_adjustment": null,
+            "why": "cafeteria closing time is not one of the five directive types -> no_op; never invent a demand change"
+          }
+        ],
+        "optimal_total_cost_bdt": 46530.0,
+        "wrong_answer_costs": [
+          {
+            "cost_bdt": 42262.5,
+            "result": "valid but wrong plan",
+            "likely_bug": "all notes no_op, or solar-offline note marked no_op"
+          },
+          {
+            "cost_bdt": null,
+            "result": "infeasible (expect 422)",
+            "likely_bug": "grid cut read as three hours [0,1,2]"
+          },
+          {
+            "cost_bdt": 50830.0,
+            "result": "valid but wrong plan",
+            "likely_bug": "solar offline window [12,13] (end-inclusive)"
+          },
+          {
+            "cost_bdt": 50300.0,
+            "result": "valid but wrong plan",
+            "likely_bug": "'noon hour' misread as [11,12]"
+          }
+        ]
+      }
+    }
+  ]
+}
